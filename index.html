@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Prueba Battle Royale 3D</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #111; color: #fff; }
+        #log { width: 80%; max-width: 500px; height: 150px; margin: 20px auto; background: #222; border: 1px solid #444; padding: 10px; text-align: left; overflow-y: auto; font-family: monospace; }
+        button { padding: 10px 20px; font-size: 16px; background: #22c55e; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        button:hover { background: #16a34a; }
+    </style>
+</head>
+<body>
+    <h1>🎮 Prueba Local - Battle Royale 3D</h1>
+    <p>Estado del servidor: <span id="status" style="color: red;">Desconectado</span></p>
+    <button onclick="enviarMovimiento()">Simular Movimiento</button>
+    
+    <h3>Consola de eventos:</h3>
+    <div id="log"></div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+
+        function log(text) {
+            logEl.innerHTML += `> ${text}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        ws.onopen = () => {
+            statusEl.innerText = 'Conectado';
+            statusEl.style.color = 'lime';
+            log('Conectado al servidor WebSocket correctamente.');
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            log('Mensaje recibido del servidor: ' + JSON.stringify(data));
+        };
+
+        ws.onclose = () => {
+            statusEl.innerText = 'Desconectado';
+            statusEl.style.color = 'red';
+            log('Se perdió la conexión con el servidor.');
+        };
+
+        function enviarMovimiento() {
+            const movimiento = { type: 'move', x: Math.floor(Math.random() * 100), y: Math.floor(Math.random() * 100) };
+            ws.send(JSON.stringify(movimiento));
+            log('Movimiento enviado al servidor.');
+        }
+    </script>
+</body>
+</html>
