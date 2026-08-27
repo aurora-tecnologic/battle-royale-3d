@@ -2,79 +2,505 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Battle Royale 3D - Mapa en Vivo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Battle Royale 3D - Hecho por Santiago</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #111; color: #fff; margin: 0; padding: 20px; }
-        canvas { background: #1e293b; border: 2px solid #475569; display: block; margin: 15px auto; border-radius: 8px; }
-        #status { font-weight: bold; }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        body { overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        #gameCanvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* UI Overlay */
+        #ui { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #ui > * { pointer-events: auto; }
+        
+        /* Login */
+        #login {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; justify-content: center;
+            align-items: center; z-index: 1000;
+        }
+        .login-box {
+            background: #1a1a2e; padding: 40px; border-radius: 15px;
+            border: 2px solid #4a9eff; max-width: 400px; width: 90%;
+        }
+        .login-box h1 { color: #4a9eff; margin-bottom: 20px; text-align: center; }
+        .login-box input {
+            width: 100%; padding: 12px; margin: 10px 0;
+            background: #16213e; border: 1px solid #4a9eff;
+            color: white; border-radius: 5px; font-size: 16px;
+        }
+        .login-box button {
+            width: 100%; padding: 15px; background: #4a9eff;
+            color: white; border: none; border-radius: 5px;
+            font-size: 18px; cursor: pointer; margin-top: 10px;
+        }
+        .login-box button:hover { background: #3a8eef; }
+        
+        /* HUD */
+        #hud { display: none; }
+        .hud-top {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.7); padding: 10px 15px;
+            border-radius: 8px; color: white; font-size: 14px;
+        }
+        .health-bar {
+            width: 200px; height: 20px; background: #333;
+            border-radius: 10px; overflow: hidden; margin-top: 5px;
+        }
+        .health-fill {
+            height: 100%; background: #22c55e; width: 100%;
+            transition: width 0.3s;
+        }
+        
+        /* Controles táctiles */
+        #joystick-left {
+            position: absolute; bottom: 100px; left: 50px;
+            width: 120px; height: 120px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%; display: none;
+            pointer-events: auto;
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            background: rgba(74,158,255,0.5);
+            border-radius: 50%; transform: translate(-50%, -50%);
+        }
+        
+        #buttons-right {
+            position: absolute; bottom: 50px; right: 50px;
+            display: none; flex-direction: column; gap: 15px;
+        }
+        .action-btn {
+            width: 70px; height: 70px;
+            background: rgba(74,158,255,0.8);
+            border-radius: 50%; border: none;
+            color: white; font-size: 24px;
+            cursor: pointer;
+        }
+        .action-btn:active { background: rgba(74,158,255,1); }
+        
+        /* Crosshair */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; height: 20px;
+        }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute;
+            background: #22c55e;
+        }
+        #crosshair::before {
+            width: 2px; height: 20px;
+            left: 9px; top: 0;
+        }
+        #crosshair::after {
+            width: 20px; height: 2px;
+            left: 0; top: 9px;
+        }
+        
+        /* Kill feed */
+        #kill-feed {
+            position: absolute; top: 100px; right: 10px;
+            max-width: 300px;
+        }
+        .kill-message {
+            background: rgba(0,0,0,0.7); color: white;
+            padding: 10px; margin: 5px 0; border-radius: 5px;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Loading */
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; justify-content: center;
+            align-items: center; z-index: 2000; color: white;
+            font-size: 24px; text-align: center;
+        }
+        
+        /* Instructions */
+        #instructions {
+            position: absolute; bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            color: white; background: rgba(0,0,0,0.7);
+            padding: 10px; border-radius: 5px;
+            font-size: 12px; text-align: center;
+        }
     </style>
 </head>
 <body>
-    <h1>🎮 Battle Royale 3D - Mapa de Jugadores</h1>
-    <p>Estado del servidor: <span id="status" style="color: red;">Desconectado</span></p>
+    <!-- Loading -->
+    <div id="loading">
+        <div>
+            <h2>🎮 Battle Royale 3D</h2>
+            <p>Cargando...</p>
+            <p style="margin-top: 20px; font-size: 16px;">⚡ Hecho por Santiago ⚡</p>
+        </div>
+    </div>
     
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
-    <p>Toca el mapa para mover a tu personaje</p>
+    <!-- Login -->
+    <div id="login">
+        <div class="login-box">
+            <h1> Battle Royale 3D</h1>
+            <input type="text" id="username" placeholder="Nombre de usuario">
+            <input type="text" id="displayName" placeholder="Nombre en juego">
+            <input type="text" id="whatsapp" placeholder="WhatsApp (+573001234567)">
+            <button onclick="registerPlayer()">JUGAR</button>
+            <p style="color: #888; text-align: center; margin-top: 15px; font-size: 12px;">
+                ⚡ Hecho por Santiago ⚡
+            </p>
+        </div>
+    </div>
+    
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- UI -->
+    <div id="ui">
+        <div id="hud">
+            <div class="hud-top">
+                <div class="stat-box">
+                    <div>❤️ SALUD</div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="healthFill"></div>
+                    </div>
+                    <div style="margin-top: 10px;">💰 <span id="coins">0</span></div>
+                    <div>💎 <span id="gems">0</span></div>
+                    <div style="margin-top: 10px; font-size: 12px;">ID: <span id="playerId">-</span></div>
+                </div>
+                <div class="stat-box">
+                    <div>🎯 JUGADORES</div>
+                    <div style="font-size: 24px; font-weight: bold;" id="playerCount">1</div>
+                </div>
+            </div>
+            
+            <div id="crosshair"></div>
+            
+            <div id="kill-feed"></div>
+            
+            <div id="joystick-left">
+                <div id="joystick-knob"></div>
+            </div>
+            
+            <div id="buttons-right">
+                <button class="action-btn" ontouchstart="shoot()" onclick="shoot()">🎯</button>
+                <button class="action-btn" onclick="jump()">⬆️</button>
+            </div>
+            
+            <div id="instructions">
+                WASD / Joystick: Moverse | Mouse: Mirar | Click: Disparar | Espacio: Saltar
+            </div>
+        </div>
+    </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const ws = new WebSocket('ws://' + window.location.host);
-        const statusEl = document.getElementById('status');
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        let scene, camera, renderer;
+        let player, playerVelocity;
+        let websocket;
+        let playerId = null;
+        let health = 100;
+        let coins = 0;
+        let gems = 0;
+        let isGameActive = false;
 
-        let players = {};
+        const worldSize = 500;
+        const objects = [];
+        const bots = [];
+        const lootItems = [];
 
-        ws.onopen = () => {
-            statusEl.innerText = 'Conectado';
-            statusEl.style.color = 'lime';
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canJump = false;
+
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                initThreeJS();
+                connectWebSocket();
+            }, 1000);
         };
 
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'state') {
-                players = data.players;
-                draw();
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 0, 500);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 110, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(100, 200, 100);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            createTerrain();
+            createTrees();
+            createHouses();
+            createLake();
+            createPlayer();
+            createLoot();
+
+            setupControls();
+            animate();
+        }
+
+        function createTerrain() {
+            const geometry = new THREE.PlaneGeometry(worldSize, worldSize, 100, 100);
+            const vertices = geometry.attributes.position.array;
+            for (let i = 0; i < vertices.length; i += 3) {
+                const x = vertices[i];
+                const y = vertices[i + 1];
+                vertices[i + 2] = Math.sin(x * 0.01) * 10 + Math.cos(y * 0.01) * 10;
             }
-        };
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshLambertMaterial({ color: 0x3d8b3d });
+            const terrain = new THREE.Mesh(geometry, material);
+            terrain.rotation.x = -Math.PI / 2;
+            terrain.receiveShadow = true;
+            scene.add(terrain);
+            objects.push(terrain);
+        }
 
-        ws.onclose = () => {
-            statusEl.innerText = 'Desconectado';
-            statusEl.style.color = 'red';
-        };
-
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            ws.send(JSON.stringify({ type: 'move', x: x, y: y }));
-        });
-
-        function draw() {
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Cuadrícula
-            ctx.strokeStyle = '#334155';
-            for (let i = 0; i < canvas.width; i += 40) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        function createTrees() {
+            const treeGeometry = new THREE.CylinderGeometry(0, 3, 15, 8);
+            const treeMaterial = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+            for (let i = 0; i < 100; i++) {
+                const tree = new THREE.Mesh(treeGeometry, treeMaterial);
+                tree.position.set((Math.random() - 0.5) * 450, 7.5, (Math.random() - 0.5) * 450);
+                scene.add(tree);
+                objects.push(tree);
             }
+        }
 
-            // Dibujar jugadores conectados
-            for (let id in players) {
-                const p = players[id];
-                ctx.fillStyle = '#22c55e';
-                ctx.beginPath();
-                ctx.arc(p.x || 200, p.y || 200, 10, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.fillStyle = '#fff';
-                ctx.font = '11px monospace';
-                ctx.fillText(id, (p.x || 200) - 15, (p.y || 200) - 15);
+        function createHouses() {
+            for (let i = 0; i < 20; i++) {
+                const houseGroup = new THREE.Group();
+                const base = new THREE.Mesh(new THREE.BoxGeometry(15, 8, 15), new THREE.MeshLambertMaterial({ color: 0x8b4513 }));
+                base.position.y = 4;
+                houseGroup.add(base);
+                
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(12, 6, 4), new THREE.MeshLambertMaterial({ color: 0x8b0000 }));
+                roof.position.y = 11;
+                roof.rotation.y = Math.PI / 4;
+                houseGroup.add(roof);
+                
+                houseGroup.position.set((Math.random() - 0.5) * 400, 0, (Math.random() - 0.5) * 400);
+                scene.add(houseGroup);
+                objects.push(houseGroup);
             }
+        }
+
+        function createLake() {
+            const lake = new THREE.Mesh(new THREE.CircleGeometry(40, 32), new THREE.MeshLambertMaterial({ color: 0x4169e1, transparent: true, opacity: 0.7 }));
+            lake.rotation.x = -Math.PI / 2;
+            lake.position.set(100, 0.5, 100);
+            scene.add(lake);
+        }
+
+        function createPlayer() {
+            player = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshLambertMaterial({ color: 0x4a9eff }));
+            body.position.y = 2;
+            player.add(body);
+            
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshLambertMaterial({ color: 0xffdbac }));
+            head.position.y = 4.75;
+            player.add(head);
+            
+            scene.add(player);
+            playerVelocity = new THREE.Vector3();
+        }
+
+        function createLoot() {
+            const lootTypes = [
+                { color: 0xffd700, value: 500, name: 'coin' },
+                { color: 0x22c55e, value: 1800, name: 'emerald' },
+                { color: 0xef4444, value: 3200, name: 'ruby' }
+            ];
+            for (let i = 0; i < 30; i++) {
+                const type = lootTypes[Math.floor(Math.random() * lootTypes.length)];
+                const loot = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: type.color }));
+                loot.position.set((Math.random() - 0.5) * 480, 1, (Math.random() - 0.5) * 480);
+                loot.userData = { type: type.name, value: type.value };
+                scene.add(loot);
+                lootItems.push(loot);
+            }
+        }
+
+        function setupControls() {
+            document.addEventListener('keydown', (e) => {
+                switch(e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'Space': if (canJump) { playerVelocity.y = 15; canJump = false; } break;
+                }
+            });
+            document.addEventListener('keyup', (e) => {
+                switch(e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyD': moveRight = false; break;
+                }
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (isGameActive && document.pointerLockElement === document.body) {
+                    player.rotation.y -= e.movementX * 0.002;
+                    camera.rotation.x -= e.movementY * 0.002;
+                    camera.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, camera.rotation.x));
+                }
+            });
+            document.addEventListener('click', () => {
+                if (isGameActive) document.body.requestPointerLock();
+            });
+            setupTouchControls();
+        }
+
+        function setupTouchControls() {
+            const joystick = document.getElementById('joystick-left');
+            const knob = document.getElementById('joystick-knob');
+            let touchStartX = 0, touchStartY = 0;
+            
+            joystick.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            });
+            joystick.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const deltaX = e.touches[0].clientX - touchStartX;
+                const deltaY = e.touches[0].clientY - touchStartY;
+                const dist = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 35);
+                const angle = Math.atan2(deltaY, deltaX);
+                knob.style.transform = `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px))`;
+                moveForward = deltaY < -10; moveBackward = deltaY > 10;
+                moveLeft = deltaX < -10; moveRight = deltaX > 10;
+            });
+            joystick.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                knob.style.transform = 'translate(-50%, -50%)';
+                moveForward = moveBackward = moveLeft = moveRight = false;
+            });
+        }
+
+        function connectWebSocket() {
+            try {
+                websocket = new WebSocket(`ws://${window.location.host}`);
+                websocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'registered') {
+                        playerId = data.payload.id;
+                        startGame();
+                    }
+                };
+            } catch (e) { console.log('Modo offline activo'); }
+        }
+
+        function registerPlayer() {
+            playerId = '#' + Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.floor(Math.random() * 100000);
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: 'register', payload: { id: playerId } }));
+            } else {
+                startGame();
+            }
+        }
+
+        function startGame() {
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('joystick-left').style.display = 'block';
+            document.getElementById('buttons-right').style.display = 'flex';
+            document.getElementById('playerId').textContent = playerId;
+            isGameActive = true;
+            
+            let parachuteY = 110;
+            const parachuteInterval = setInterval(() => {
+                if (parachuteY > 2) {
+                    parachuteY -= 0.5;
+                    player.position.y = parachuteY;
+                    camera.position.y = parachuteY + 5;
+                } else { clearInterval(parachuteInterval); }
+            }, 50);
+        }
+
+        function shoot() {
+            if (!isGameActive) return;
+            const flash = new THREE.PointLight(0xffff00, 1, 10);
+            flash.position.copy(camera.position);
+            scene.add(flash);
+            setTimeout(() => scene.remove(flash), 100);
+        }
+
+        function jump() {
+            if (canJump && player.position.y <= 2) {
+                playerVelocity.y = 15;
+                canJump = false;
+            }
+        }
+
+        function updatePlayer(delta) {
+            if (!isGameActive) return;
+            const direction = new THREE.Vector3();
+            if (moveForward) direction.z -= 1;
+            if (moveBackward) direction.z += 1;
+            if (moveLeft) direction.x -= 1;
+            if (moveRight) direction.x += 1;
+            direction.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rotation.y);
+            
+            player.position.x += direction.x * 10 * delta;
+            player.position.z += direction.z * 10 * delta;
+            playerVelocity.y -= 30 * delta;
+            player.position.y += playerVelocity.y * delta;
+            
+            if (player.position.y < 2) { player.position.y = 2; playerVelocity.y = 0; canJump = true; }
+            
+            const cameraOffset = new THREE.Vector3(0, 5, 10).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rotation.y);
+            camera.position.set(player.position.x + cameraOffset.x, Math.max(player.position.y + 5, camera.position.y), player.position.z + cameraOffset.z);
+            camera.lookAt(player.position);
+            
+            for (let i = lootItems.length - 1; i >= 0; i--) {
+                if (player.position.distanceTo(lootItems[i].position) < 3) {
+                    if (lootItems[i].userData.type === 'coin') {
+                        coins += lootItems[i].userData.value;
+                        document.getElementById('coins').textContent = coins;
+                    } else {
+                        gems += lootItems[i].userData.value;
+                        document.getElementById('gems').textContent = gems;
+                    }
+                    scene.remove(lootItems[i]);
+                    lootItems.splice(i, 1);
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePlayer(0.016);
+            lootItems.forEach(loot => {
+                loot.rotation.y += 0.02;
+                loot.position.y = 1 + Math.sin(Date.now() * 0.003) * 0.3;
+            });
+            renderer.render(scene, camera);
         }
     </script>
 </body>
