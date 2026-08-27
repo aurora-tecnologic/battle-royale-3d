@@ -1,0 +1,10 @@
+{
+  "name": "battle-royale-server",
+  "version": "1.0.0",
+  "description": "Servidor Battle Royale",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.16.0"
+  }
+}
